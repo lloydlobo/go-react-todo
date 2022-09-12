@@ -1,0 +1,392 @@
+#+TITLE:Go React TODO App
+#+AUTHOR: lloydlobo
+#+STARTUP: showeverything
+#+OPTIONS: num:nil ^:{}
+# #+PROPERTY: header-args :tangle yes :results none
+-----
+
+* TABLE OF CONTENTS :toc:
+- [[#about][ABOUT]]
+  - [[#what-is-being-used][What is being used?]]
+  - [[#learning-outcomes][Learning Outcomes?]]
+  - [[#project-links][Project Links]]
+  - [[#notes][NOTES]]
+- [[#][...]]
+- [[#server][SERVER]]
+  - [[#methods-used][METHODS USED]]
+  - [[#maingo][main.go]]
+- [[#client][CLIENT]]
+  - [[#src][src]]
+
+* ABOUT
+** What is being used?
+*** Go - Server
+*** Fiber - Go web server
+**** Overview
+Package fiber is an Express inspired web framework built on top of Fasthttp, the fastest HTTP engine for Go. Designed to ease things up for fast development with zero memory allocation and performance in mind.
+**** URL
+- https://pkg.go.dev/github.com/gofiber/fiber/v2
+**** Default Config values
+#+begin_example go
+const (
+	MethodGet     = "GET"     // RFC 7231, 4.3.1
+	MethodHead    = "HEAD"    // RFC 7231, 4.3.2
+	MethodPost    = "POST"    // RFC 7231, 4.3.3
+	MethodPut     = "PUT"     // RFC 7231, 4.3.4
+	MethodPatch   = "PATCH"   // RFC 5789
+	MethodDelete  = "DELETE"  // RFC 7231, 4.3.5
+	MethodConnect = "CONNECT" // RFC 7231, 4.3.6
+	MethodOptions = "OPTIONS" // RFC 7231, 4.3.7
+	MethodTrace   = "TRACE"   // RFC 7231, 4.3.8
+
+)
+#+end_example
+*** Vite - Client
+*** Mantine - React component library
+*** TypeScript - Static Types
+** Learning Outcomes?
+*** How to make a basic Go REST API
+*** How to make a `todo UI`
+*** React with TypeScript
+*** Basic Mantine usage
+** Project Links
+*** Tutorial
+**** Name
+***** Build A Go REST API, React.js & TypeScript Todo Application
+**** YouTube
+***** https://www.youtube.com/watch?v=QevhhM_QfbM
+**** Git Repository
+***** https://github.com/TomDoesTech/go-react-todo
+*** TODO Project Repository
+*** TODO Live
+** NOTES
+*** Initialize Go app
+Use the hosted repository's address as the name-space for go mod initialize.
+#+begin_example sh
+go mod init github.com/lloydlobo/go-react-todo
+#+end_example
+*** Install Fiber v2
+#+begin_example sh
+go get -u github.com/gofiber/fiber/v2
+#+end_example
+*** Create client app with Yarn & Vite
+#+begin_example sh
+yarn create vite <directory-name> -- --template react-ts
+# OR yarn global
+create-vite
+# directory-name here is `client`
+#+end_example
+**** Post-install: Run yarn & yarn dev
+#+begin_example sh
+cd client
+yarn
+yarn dev
+#+end_example
+*** Install dependencies
+#+begin_example sh
+yarn add @mantine/hooks @mantine/core swr @primer/octicons-react
+#+end_example
+*** ....
+*** YARN troubleshooting
+**** Creates new projects from any create-* starter kits.
+: yarn create <starter-kit-package> [<args>]
+**** This command is a shorthand that helps you do two things at once:
+***** Install create-<starter-kit-package> globally, or update the package to the latest version if it already exists
+***** Run the executable located in the bin field of the starter kit’s package.json, forwarding any <args> to it
+**** For example, yarn create react-app my-app is equivalent to:
+: $ yarn global add create-react-app
+: $ create-react-app my-app
+**** URL: https://classic.yarnpkg.com/en/docs/cli/create
+* ...
+* SERVER
+** METHODS USED
+*** GET
+**** app.Get("healthcheck") test endpoint with Postman localhost:4000
+*** POST
+**** /api/todos
+***** Request (Post a title, body)
+#+begin_example json
+{
+    "title": "Testing",
+    "body": "Finish tutorial"
+}
+#+end_example
+****** Response
+#+begin_example sh
+json: cannot unmarshal string into Go struct field Todo.body of type int
+#+end_example
+
+** main.go
+*** header
+# #+NAME: docs.org header
+#+begin_src go :tangle ./server/main.go :noweb yes :comments link
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+)
+#+end_src
+
+*** to do struct
+#+begin_src go :tangle ./server/main.go :noweb yes :comments link
+type Todo struct {
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+	Done  bool   `json:"done"`
+	Body  string `json:"body"`
+}
+#+end_src
+
+*** main
+#+begin_src go :tangle ./server/main.go :noweb yes :comments link
+// Function main fiber endpoints
+func main() {
+	fmt.Printf("Hello, world")
+
+	// Automatically assign fiber type to app variable
+	app := fiber.New()
+
+	// CORS config - Allow port 5173 (vite default)
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:5173",
+		AllowHeaders: "Origin, Content-Type, Accept",
+	}))
+
+	// Create a slice (array) of Todo
+	todos := []Todo{}
+
+	// GET endpoint to check server health with 200 return "OK" status.
+	app.Get("/healthcheck", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
+	// POST endpoint
+	app.Post("/api/todos", func(c *fiber.Ctx) error {
+		todo := &Todo{}
+
+		if err := c.BodyParser(todo); err != nil {
+			return err
+		}
+
+		todo.ID = len(todos) + 1
+
+		// append a * pointer to todo
+		todos = append(todos, *todo)
+
+		// Return slice(list/array) of todos
+		return c.JSON(todos)
+	})
+
+	// PATCH endpoint: Get id out of the url as an integer
+	app.Patch("/api/todos/:id/done", func(c *fiber.Ctx) error {
+		id, err := c.ParamsInt("id")
+
+		if err != nil {
+			return c.Status(401).SendString("Invalid id")
+		}
+
+		// To update a single todo Loop through all the todos.
+		// Find the id through the url and mark it as done.
+		for i, t := range todos {
+			if t.ID == id {
+				todos[i].Done = true
+				break
+			}
+		} // http://127.0.0.1:4000/api/todos/1/done
+
+		return c.JSON(todos)
+	})
+
+	// GET endpoint: Get back all todos
+	app.Get("/api/todos", func(c *fiber.Ctx) error {
+		return c.JSON(todos)
+	}) // http://127.0.0.1:4000/api/todos/
+
+	log.Fatal(app.Listen(":4000"))
+
+}
+#+end_src
+
+*** Create variable app with `:=`
+**** Assign it to fiber.New()
+**** Infer the type automatically with :=
+* CLIENT
+** src
+*** App.tsx
+**** Imports
+#+begin_src typescript :tangle ./client/src/App.tsx :noweb yes :comments link
+import { Box, List, ThemeIcon } from '@mantine/core'
+import { CheckCircleFillIcon } from '@primer/octicons-react';
+import useSWR from 'swr';
+import './App.css'
+import AddTodo from './components/AddTodo';
+#+end_src
+**** export interface Todo
+#+begin_src typescript :tangle ./client/src/App.tsx :noweb yes :comments link
+export interface Todo {
+  id: number;
+  title: string;
+  body: string;
+  done: boolean;
+}
+#+end_src
+**** constant ENDPOINT
+#+begin_src typescript :tangle ./client/src/App.tsx :noweb yes :comments link
+export const ENDPOINT = "http://localhost:4000";
+#+end_src
+
+**** Functions
+#+begin_src typescript :tangle ./client/src/App.tsx :noweb yes :comments link
+// const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) =>
+  fetch(`${ENDPOINT}/${url}`).then((r) => r.json());
+
+// TODO due to cors error, fix it in ../server in main.go
+/* Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at http://localhost:4000/api/todos. (Reason: CORS request did not succeed). Status code: (null). */
+
+function App() {
+  // This prints out the result above ADD TODO button in UI
+  const { data, mutate } = useSWR<Todo[]>("api/todos", fetcher);
+
+  async function markTodoAsDone(id: number) {
+    const updated = await fetch(`${ENDPOINT}/api/todos/${id}/done`, {
+      method: "PATCH"
+    }).then((response) => response.json());
+
+    mutate(updated);
+  }
+
+  return (
+    // style output result with sx from @mantine/style lib
+    <Box
+      sx={(theme) => ({
+        padding: "2rem",
+        width: "100%",
+        maxWidth: "40rem",
+        margin: "0 auto",
+      })}
+    >
+      {/* pretty format collected todo json stringify data */}
+      <List spacing="xs" size="sm" mb={12} center>
+        {/* Map through the todos and remove testing stringify(data) */}
+        {/* `?`since todo can be undefined while fetching the data */}
+        {data?.map((todo) => {
+          // todo__... is unique as an id
+          return (
+            <List.Item
+              onClick={() => markTodoAsDone(todo.id)}
+              key={`todo__${todo.id}`}
+              icon={
+                todo.done ? (
+                  // if done colored else gray
+                  <ThemeIcon color="teal" size={24} radius="xl">
+                    <CheckCircleFillIcon size={20} />
+                  </ThemeIcon>
+                ) : (
+                  <ThemeIcon color="gray" size={24} radius="xl">
+                    <CheckCircleFillIcon size={20} />
+                  </ThemeIcon>
+                )
+              }
+            >
+              {todo.title}
+            </List.Item>
+          );
+        })} {/* {JSON.stringify(data)} */}
+      </List>
+
+      {/* render AddTodo modal componenet */}
+      <AddTodo mutate={mutate} />
+
+    </Box>
+  ); // # [] in Raw Data: http://localhost:5173/
+
+}
+
+export default App
+#+end_src
+
+*** components/AddTodo.tsx
+**** AddTodo
+#+begin_src typescript :tangle ./client/src/components/AddTodo.tsx :noweb yes :comments link
+import { useState } from "react";
+import { useForm } from "@mantine/form";
+import { Button, Group, Modal, Textarea, TextInput } from "@mantine/core";
+import { ENDPOINT, Todo } from "../App";
+import { KeyedMutator } from "swr";
+
+function AddTodo({ mutate }: { mutate: KeyedMutator<Todo[]> }) {
+  // Controls whether the addtood dialog is open or closed
+  const [open, setOpen] = useState(false);
+
+  // https://mantine.dev/form/use-form/
+  const form = useForm({
+    initialValues: {
+      title: "",
+      body: "",
+      // email: "",
+    },
+    // validate: { email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'), },
+  });
+
+  async function createTodo(values: { title: string; body: string }) {
+    const updated = await fetch(`${ENDPOINT}/api/todos`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(values)
+    }).then((response) => response.json());
+
+    // Call KeyedMutator (from swr) with updated
+    mutate(updated);
+    form.reset();
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Modal
+        title="Create todo" opened={open}
+        onClose={() => setOpen(false)}
+      >
+        {/* Create HTML form element */}
+        <form onSubmit={form.onSubmit(createTodo)}>
+          {/* TextInput & Textarea from @mantine/core */}
+          <TextInput
+            required
+            mb={12}
+            label="Todo"
+            placeholder="What do you want to do?"
+            // spread form from useForm setup
+            {...form.getInputProps("title")}
+          />
+          <Textarea required
+            // autosize={true}
+            mb={12}
+            label="Description"
+            placeholder="Tell me more..."
+            {...form.getInputProps("body")}
+          />
+          <Button type="submit">Create Todo</Button>
+        </form>
+      </Modal>
+
+      {/* // Button to set open to true @mantine/core */}
+      <Group position="center" >
+        <Button fullWidth mb={12} onClick={() => setOpen(true)}
+        >
+          ADD TODO
+        </Button>
+      </Group>
+
+    </>
+  )
+}
+
+export default AddTodo;
+#+end_src
